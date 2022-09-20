@@ -1,6 +1,6 @@
-# SATSIM
+# LEOSIM
 
-Simulation of satellite streaks in astronomical images including: 
+Simulation of low earth orbit satellite streaks in astronomical images including: 
 
 * Generate realistic satellite surface brightness profiles based on satellite geometry, orbit parameters, telescope properties, and atmosphere.
 
