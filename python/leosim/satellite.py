@@ -1,6 +1,8 @@
 import numpy as np
+import os
 
 import rubin_sim.phot_utils as photUtils
+from rubin_sim.data import get_data_dir
 
 from leosim.profiles.convolution import convolve
 from leosim.profiles.seeing import GausKolmogorov, VonKarman
@@ -57,16 +59,16 @@ class BaseSatellite:
 
         filename = os.path.join(get_data_dir(), 'throughputs/baseline/total_{0}.dat'.format(band.lower()))
         bandpass = photUtils.Bandpass()
-        bandpass.read_throughputs(filename)
+        bandpass.read_throughput(filename)
         photo_params = photUtils.PhotometricParameters(exptime=dt, nexp=1, gain=gain)
 
         m0_adu = self.sed.calc_adu(bandpass, phot_params=photo_params)
-        adu = m0_adu*(10**(-self.magnitude/2.5))
+        adu = m0_adu*(10**(-magnitude/2.5))
 
-        streak_profile = get_normalized_profile(seeing_fwhm, instrument, scale=scale, atmosphere=atmosphere)
-        
+        streak_profile = self.get_normalized_profile(seeing_fwhm, instrument, scale=scale, atmosphere=atmosphere)
+         
         counts_per_pixel = adu*streak_profile.obj/np.trapz(streak_profile.obj, x=streak_profile.scale/plate_scale)    
-        pixels = streak_profile.scale
+        pixels = streak_profile.scale/plate_scale
 
         return pixels, counts_per_pixel
    
