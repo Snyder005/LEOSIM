@@ -6,7 +6,7 @@ from leosim.profiles.convolution import convolve
 from leosim.profiles.seeing import GausKolmogorov, VonKarman
 from leosim.profiles.defocusing import FluxPerAngle
 from leosim.profiles.objectprofiles import DiskSource, RectangularSource
-from np.consts import G, M_earth, R_earth
+from astropy.constants import G, M_earth, R_earth
 
 class BaseSatellite:
     
@@ -19,14 +19,14 @@ class BaseSatellite:
 
         ## Calculate relevant velocities
         h = self.height*1000.
-        self.omega = np.sqrt(G*M_earth/(R_earth + h)**3)
-        self.orbit_v = self.omega*(R_earth + h)
+        self.omega = np.sqrt(G.value*M_earth.value/(R_earth.value + h)**3)
+        self.orbit_v = self.omega*(R_earth.value + h)
 
-        x = np.arcsin(R_earth*np.sin(self.zangle)/(R_earth + h))
+        x = np.arcsin(R_earth.value*np.sin(self.zangle)/(R_earth.value + h))
         if np.isclose(x, 0):
             self.distance = self.height
         else:
-            self.distance = np.sin(self.zangle - x)*R_earth/np.sin(x)/1000.
+            self.distance = np.sin(self.zangle - x)*R_earth.value/np.sin(x)/1000.
             
         tan_v = self.orbit_v*np.cos(x)
         self.angular_v = tan_v*180.*60./(self.distance*1000.*np.pi)
@@ -65,22 +65,24 @@ class BaseSatellite:
 
         streak_profile = get_normalized_profile(seeing_fwhm, instrument, scale=scale, atmosphere=atmosphere)
         
-        streak_profile.obj = adu*streak_profile.obj/np.trapz(streak_profile.obj, x=streak_profile.scale/plate_scale)    
-        streak_profile.scale = streak_profile.scale/plate_scale
+        counts_per_pixel = adu*streak_profile.obj/np.trapz(streak_profile.obj, x=streak_profile.scale/plate_scale)    
+        pixels = streak_profile.scale
+
+        return pixels, counts_per_pixel
    
 class DiskSatellite(BaseSatellite):
     
-    def __init__(self, magnitude, height, zangle, radius):
+    def __init__(self, height, zangle, radius):
         
-        super().__init__(magnitude, height, zangle)
+        super().__init__(height, zangle)
         self.radius = radius
-        self.profile = DiskSource(self.distance, self.radius)
+        self.source_profile = DiskSource(self.distance, self.radius)
         
 class RectSatellite(BaseSatellite):
     
-    def __init__(self, magnitude, height, zangle, length, width):
+    def __init__(self, height, zangle, length, width):
         
-        super().__init__(magnitude, height, zangle)
+        super().__init__(height, zangle)
         self.length = length
         self.width = width
-        self.profile = RectangularSource(self.distance, length, width)
+        self.source_profile = RectangularSource(self.distance, length, width)
