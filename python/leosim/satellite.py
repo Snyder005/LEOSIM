@@ -1,55 +1,44 @@
 import numpy as np
+import os
 
-import rubin_sim.photUtils as photUtils
-import syseng_throughputs as st
+import rubin_sim.phot_utils as photUtils
+from rubin_sim.data import get_data_dir
 
 from leosim.profiles.convolution import convolve
 from leosim.profiles.seeing import GausKolmogorov, VonKarman
 from leosim.profiles.defocusing import FluxPerAngle
 from leosim.profiles.objectprofiles import DiskSource, RectangularSource
-
-LSSTM0ADU = {'u' : 7.070173e06,
-             'g' : 2.543741e07,
-             'r' : 2.073579e07,
-             'i' : 1.576086e07,
-             'z' : 1.092646e07,
-             'Y' : 5.257237e06}
+from astropy.constants import G, M_earth, R_earth
 
 class BaseSatellite:
     
-    def __init__(self, magnitude, height, zangle):
-        
-        G = 6.673E-11
-        Me = 5.972E24
-        Re = 6371E3
-
+    def __init__(self, height, zangle):
+           
+        self.height = height
         if zangle < 0.:
             raise ValueError('zangle {0.1f} cannot be less than 0 deg'.format(zangle))
-            
-        self.magnitude = magnitude
-        self.height = height
         self.zangle = np.radians(zangle)
 
         ## Calculate relevant velocities
         h = self.height*1000.
-        self.omega = np.sqrt(G*Me/(Re+h)**3)
-        self.orbit_v = self.omega*(Re+h)
+        self.omega = np.sqrt(G.value*M_earth.value/(R_earth.value + h)**3)
+        self.orbit_v = self.omega*(R_earth.value + h)
 
-        x = np.arcsin(Re*np.sin(self.zangle)/(Re+h))
+        x = np.arcsin(R_earth.value*np.sin(self.zangle)/(R_earth.value + h))
         if np.isclose(x, 0):
             self.distance = self.height
         else:
-            self.distance = np.sin(self.zangle-x)*Re/np.sin(x)/1000.
+            self.distance = np.sin(self.zangle - x)*R_earth.value/np.sin(x)/1000.
             
         tan_v = self.orbit_v*np.cos(x)
         self.angular_v = tan_v*180.*60./(self.distance*1000.*np.pi)
         
         self.sed = photUtils.Sed()
-        self.sed.setFlatSED()
-        self.sed.flambdaTofnu()
-        self.profile = None
+        self.sed.set_flat_sed()
+        self.sed.flambda_tofnu()
+        self.source_profile = None
         
-    def get_trail_profile(self, seeing_fwhm, instrument, scale=None, atmosphere='GausKolmogorov'):
+    def get_normalized_profile(self, seeing_fwhm, instrument, scale=None, atmosphere='GausKolmogorov'):
         
         if atmosphere == 'GausKolmogorov':
             seeing_profile = GausKolmogorov(seeing_fwhm, scale=scale)
@@ -58,48 +47,44 @@ class BaseSatellite:
         else:
             raise ValueError('{0} is not a supported atmosphere type.'.format(atmosphere))
         defocus_profile = FluxPerAngle(self.distance, instrument)
-        trail_profile = convolve(self.profile, seeing_profile, defocus_profile)
-        
-        return trail_profile
-    
-    def get_total_flux(self, band, effarea, pixel_scale, gain=1.0):
+        streak_profile = convolve(self.source_profile, seeing_profile, defocus_profile)
+        streak_profile.norm()        
 
-        dt = pixel_scale/(self.angular_v/60.*3600)
-        defaultDirs = st.setDefaultDirs()
-        hardware, system = st.buildHardwareAndSystem(defaultDirs)
+        return streak_profile
 
-        photo_params = photUtils.PhotometricParameters(exptime=dt, nexp=1, gain=gain, effarea=effarea,
-                                                       readnoise=0.0, othernoise=0.0, darkcurrent=0.0)
-        m0_adu = self.sed.calcADU(system[band], photParams=photo_params)
+    def get_surface_brightness_profile(self, magnitude, band, seeing_fwhm, instrument, gain=1.0, 
+                                       plate_scale=0.2, scale=None, atmosphere='GausKolmogorov'):
 
-        adu = m0_adu*(10**(-self.magnitude/2.5))
-        
-        return adu
-    
-    @staticmethod
-    def surface_brightness_profile(profile, adu, plate_scale):
+        dt = plate_scale/(self.angular_v/60.*3600)
 
-        ratio = np.max(profile.obj)/np.trapz(profile.obj, x=profile.scale/plate_scale)
-        
-        x = profile.scale/plate_scale
-        y = ratio*adu*profile.obj/np.max(profile.obj)
+        filename = os.path.join(get_data_dir(), 'throughputs/baseline/total_{0}.dat'.format(band.lower()))
+        bandpass = photUtils.Bandpass()
+        bandpass.read_throughput(filename)
+        photo_params = photUtils.PhotometricParameters(exptime=dt, nexp=1, gain=gain)
 
-        return x, y
+        m0_adu = self.sed.calc_adu(bandpass, phot_params=photo_params)
+        adu = m0_adu*(10**(-magnitude/2.5))
 
+        streak_profile = self.get_normalized_profile(seeing_fwhm, instrument, scale=scale, atmosphere=atmosphere)
+         
+        counts_per_pixel = adu*streak_profile.obj/np.trapz(streak_profile.obj, x=streak_profile.scale/plate_scale)    
+        pixels = streak_profile.scale/plate_scale
+
+        return pixels, counts_per_pixel
    
 class DiskSatellite(BaseSatellite):
     
-    def __init__(self, magnitude, height, zangle, radius):
+    def __init__(self, height, zangle, radius):
         
-        super().__init__(magnitude, height, zangle)
+        super().__init__(height, zangle)
         self.radius = radius
-        self.profile = DiskSource(self.distance, self.radius)
+        self.source_profile = DiskSource(self.distance, self.radius)
         
 class RectSatellite(BaseSatellite):
     
-    def __init__(self, magnitude, height, zangle, length, width):
+    def __init__(self, height, zangle, length, width):
         
-        super().__init__(magnitude, height, zangle)
+        super().__init__(height, zangle)
         self.length = length
         self.width = width
-        self.profile = RectangularSource(self.distance, length, width)
+        self.source_profile = RectangularSource(self.distance, length, width)
