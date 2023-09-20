@@ -1,14 +1,12 @@
 import numpy as np
 import os
+import galsim
 
 import rubin_sim.phot_utils as photUtils
 from rubin_sim.data import get_data_dir
-
-from leosim.profiles.convolution import convolve
-from leosim.profiles.seeing import GausKolmogorov, VonKarman
-from leosim.profiles.defocusing import FluxPerAngle
-from leosim.profiles.objectprofiles import DiskSource, RectangularSource
 from astropy.constants import G, M_earth, R_earth
+
+RAD2DEG = 206265.
 
 class BaseSatellite:
     
@@ -36,24 +34,9 @@ class BaseSatellite:
         self.sed = photUtils.Sed()
         self.sed.set_flat_sed()
         self.sed.flambda_tofnu()
-        self.source_profile = None
-        
-    def get_normalized_profile(self, seeing_fwhm, instrument, scale=None, atmosphere='GausKolmogorov'):
-        
-        if atmosphere == 'GausKolmogorov':
-            seeing_profile = GausKolmogorov(seeing_fwhm, scale=scale)
-        elif atmosphere == 'VonKarman':
-            seeing_profile = VonKarman(seeing_fwhm, scale=scale)
-        else:
-            raise ValueError('{0} is not a supported atmosphere type.'.format(atmosphere))
-        defocus_profile = FluxPerAngle(self.distance, instrument)
-        streak_profile = convolve(self.source_profile, seeing_profile, defocus_profile)
-        streak_profile.norm()        
-
-        return streak_profile
-
-    def get_surface_brightness_profile(self, magnitude, band, seeing_fwhm, instrument, gain=1.0, 
-                                       plate_scale=0.2, scale=None, atmosphere='GausKolmogorov'):
+        self.object = None
+       
+    def get_flux(self, magnitude, band, plate_scale):
 
         dt = plate_scale/(self.angular_v/60.*3600)
 
@@ -65,12 +48,39 @@ class BaseSatellite:
         m0_adu = self.sed.calc_adu(bandpass, phot_params=photo_params)
         adu = m0_adu*(10**(-magnitude/2.5))
 
-        streak_profile = self.get_normalized_profile(seeing_fwhm, instrument, scale=scale, atmosphere=atmosphere)
-         
-        counts_per_pixel = adu*streak_profile.obj/np.trapz(streak_profile.obj, x=streak_profile.scale/plate_scale)    
-        pixels = streak_profile.scale/plate_scale
+        return adu
 
-        return pixels, counts_per_pixel
+    def get_normalized_profile(self, seeing_psf, instrument, step_size, steps):
+
+        outer_radius, inner_radius = instrument
+        r_o = (outer_radius/(height*1000.))*RAD2DEG
+        r_i = (inner_radius/(height*1000.))*RAD2DEG
+        defocus = galsim.TopHat(r_o) - galsim.TopHat(r_i, flux=(r_i/r_o)**2.)
+ 
+        final = galsim.Convolve([sat, defocus, seeing_psf])
+        image = final.drawImage(scale=step_size, nx=steps, ny=steps)
+        profile = np.sum(image.array, axis=0)
+        normalized_profile = profile/np.max(profile)
+
+        return normalized_profile
+
+    def get_surface_brightness_profile(self, magnitude, band, seeing_psf, instrument, step_size, steps, gain=1.0, 
+                                       plate_scale=0.2):
+
+        flux = self.get_flux(magnitude, band, plate_scale) 
+        outer_radius, inner_radius = instrument
+        r_o = (outer_radius/(height*1000.))*RAD2DEG
+        r_i = (inner_radius/(height*1000.))*RAD2DEG
+        defocus = galsim.TopHat(r_o) - galsim.TopHat(r_i, flux=(r_i/r_o)**2.)
+ 
+        final = galsim.Convolve([sat, defocus, seeing_psf])
+        final = final.withFlux(flux)
+        image = final.drawImage(scale=step_size, nx=steps, ny=steps)
+        
+        profile = np.sum(image.array, axis=0)*plate_scale/step_size
+        scale = np.linspace(-int(steps*step_size/2), int(steps*step_size/2), steps)
+
+        return scale, profile
    
 class DiskSatellite(BaseSatellite):
     
@@ -78,13 +88,5 @@ class DiskSatellite(BaseSatellite):
         
         super().__init__(height, zangle)
         self.radius = radius
-        self.source_profile = DiskSource(self.distance, self.radius)
-        
-class RectSatellite(BaseSatellite):
-    
-    def __init__(self, height, zangle, length, width):
-        
-        super().__init__(height, zangle)
-        self.length = length
-        self.width = width
-        self.source_profile = RectangularSource(self.distance, length, width)
+        r_sat = (radius/(self.height*1000.))*RAD2DEG
+        self.object = galsim.TopHat(r_sat)
