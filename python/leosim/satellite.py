@@ -36,7 +36,7 @@ class BaseSatellite:
         self.sed.flambda_tofnu()
         self.object = None
        
-    def get_flux(self, magnitude, band, plate_scale):
+    def get_flux(self, magnitude, band, plate_scale, gain=1.):
 
         dt = plate_scale/(self.angular_v/60.*3600)
 
@@ -53,27 +53,28 @@ class BaseSatellite:
     def get_normalized_profile(self, seeing_psf, instrument, step_size, steps):
 
         outer_radius, inner_radius = instrument
-        r_o = (outer_radius/(height*1000.))*RAD2DEG
-        r_i = (inner_radius/(height*1000.))*RAD2DEG
+        r_o = (outer_radius/(self.distance*1000.))*RAD2DEG
+        r_i = (inner_radius/(self.distance*1000.))*RAD2DEG
         defocus = galsim.TopHat(r_o) - galsim.TopHat(r_i, flux=(r_i/r_o)**2.)
  
-        final = galsim.Convolve([sat, defocus, seeing_psf])
+        final = galsim.Convolve([self.object, defocus, seeing_psf])
         image = final.drawImage(scale=step_size, nx=steps, ny=steps)
         profile = np.sum(image.array, axis=0)
         normalized_profile = profile/np.max(profile)
+        scale = np.linspace(-int(steps*step_size/2), int(steps*step_size/2), steps)
 
-        return normalized_profile
+        return scale, normalized_profile
 
     def get_surface_brightness_profile(self, magnitude, band, seeing_psf, instrument, step_size, steps, gain=1.0, 
                                        plate_scale=0.2):
 
         flux = self.get_flux(magnitude, band, plate_scale) 
         outer_radius, inner_radius = instrument
-        r_o = (outer_radius/(height*1000.))*RAD2DEG
-        r_i = (inner_radius/(height*1000.))*RAD2DEG
+        r_o = (outer_radius/(self.distance*1000.))*RAD2DEG
+        r_i = (inner_radius/(self.distance*1000.))*RAD2DEG
         defocus = galsim.TopHat(r_o) - galsim.TopHat(r_i, flux=(r_i/r_o)**2.)
  
-        final = galsim.Convolve([sat, defocus, seeing_psf])
+        final = galsim.Convolve([self.object, defocus, seeing_psf])
         final = final.withFlux(flux)
         image = final.drawImage(scale=step_size, nx=steps, ny=steps)
         
@@ -88,5 +89,5 @@ class DiskSatellite(BaseSatellite):
         
         super().__init__(height, zangle)
         self.radius = radius
-        r_sat = (radius/(self.height*1000.))*RAD2DEG
+        r_sat = (radius/(self.distance*1000.))*RAD2DEG
         self.object = galsim.TopHat(r_sat)
