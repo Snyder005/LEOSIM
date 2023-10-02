@@ -17,24 +17,34 @@ class BaseSatellite:
             raise ValueError('zangle {0.1f} cannot be less than 0 deg'.format(zangle))
         self.zangle = np.radians(zangle)
 
-        ## Calculate relevant velocities
-        h = self.height*1000.
-        self.omega = np.sqrt(G.value*M_earth.value/(R_earth.value + h)**3)
-        self.orbit_v = self.omega*(R_earth.value + h)
-
         x = np.arcsin(R_earth.value*np.sin(self.zangle)/(R_earth.value + h))
         if np.isclose(x, 0):
             self.distance = self.height
         else:
             self.distance = np.sin(self.zangle - x)*R_earth.value/np.sin(x)/1000.
-            
-        tan_v = self.orbit_v*np.cos(x)
-        self.angular_v = tan_v*180.*60./(self.distance*1000.*np.pi)
-        
+
         self.sed = photUtils.Sed()
         self.sed.set_flat_sed()
         self.sed.flambda_tofnu()
         self.object = None
+
+    @property
+    def orbital_omega(self):
+        h = self.height*1000.
+        return np.sqrt(G.value*M_earth.value/(R_earth.value + h)**3)
+
+    @property
+    def orbital_velocity(self):
+        return self.orbital_omega*(R_earth.value + h)
+
+    @property
+    def tangential_velocity(self):
+        x = np.arcsin(R_earth.value*np.sin(self.zangle)/(R_earth.value + h))
+        return self.orbital_velocity*np.cos(x)
+
+    @property
+    def tangential_omega(self):
+        return self.tangential_velocity*180.*60./(self.distance*1000.*np.pi)
        
     def get_flux(self, magnitude, band, plate_scale, gain=1.):
 
