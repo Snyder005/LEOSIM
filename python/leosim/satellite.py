@@ -40,25 +40,28 @@ class BaseSatellite:
 
     @property
     def orbital_omega(self): # rad/s
-        return np.sqrt(G*M_earth/(R_earth + self.height)**3)
+        omega = np.sqrt(G*M_earth/(R_earth + self.height)**3)
+        return omega.to(u.radian/u.second, equivalencies=u.dimensionless_angles())
 
     @property
     def orbital_velocity(self): # m/s
-        return self.orbital_omega*(R_earth + self.height)
+        v = self.orbital_omega*(R_earth + self.height)
+        return v.to(u.meter/u.second, equivalence=u.dimensionless_angles())
 
     @property
     def tangential_velocity(self): # m/s
-        x = np.arcsin(R_earth*np.sin(self.zangle)/(R_earth + self.height))
+        x = np.arcsin(R_earth*np.sin(self.zangle)/(R_earth + self.height)
         return self.orbital_velocity*np.cos(x)
 
     @property
     def tangential_omega(self): # rad/s
-        return self.tangential_velocity/(self.distance**np.pi)
+        omega = self.tangential_velocity/(self.distance)
+        return omega.to(u.radian/u.second, equivalencies=u.dimensionless_angles())
        
     # Need to ensure above angular velocities are in rad/second not dimensionless/second
     def get_flux(self, magnitude, band, plate_scale, gain=1.):
 
-        dt = plate_scale/(self.tangential_omega/60.*3600) ## converting to arcsec/sec?
+        dt = plate_scale/self.tangential_omega.to_value(u.arcsecond/u.second)
 
         filename = os.path.join(get_data_dir(), 'throughputs/baseline/total_{0}.dat'.format(band.lower()))
         bandpass = photUtils.Bandpass()
