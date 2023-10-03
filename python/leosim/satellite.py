@@ -1,27 +1,37 @@
 import numpy as np
 import os
+from astropy.constants import G, M_earth, R_earth
+import astropy.units as u
 import galsim
 
 import rubin_sim.phot_utils as photUtils
 from rubin_sim.data import get_data_dir
-from astropy.constants import G, M_earth, R_earth
 
 RAD2DEG = 206265.
 
 class BaseSatellite:
-    
+    """Base class representing a satellite.
+
+    Parameters
+    ----------
+    height : `astropy.units.Quantity`
+        Orbital height of satellite.
+    zangle : 'astropy.units.Quantity'
+        Angle of satellite from zenith.
+    """    
     def __init__(self, height, zangle):
            
-        self.height = height
-        if zangle < 0.:
-            raise ValueError('zangle {0.1f} cannot be less than 0 deg'.format(zangle))
-        self.zangle = np.radians(zangle)
+        self.height = height.to(u.kilometer)
+        self.zangle = zangle.to(u.degree)
+        if zangle.value < 0.:
+            raise ValueError('zangle {0.1f} cannot be less than 0 deg'.format(zangle.value))
 
-        x = np.arcsin(R_earth.value*np.sin(self.zangle)/(R_earth.value + h))
-        if np.isclose(x, 0):
-            self.distance = self.height
+        x = np.arcsin(R_earth*np.sin(self.zangle)/(R_earth + self.height))
+        if np.isclose(x.value, 0):
+            distance = self.height
         else:
-            self.distance = np.sin(self.zangle - x)*R_earth.value/np.sin(x)/1000.
+            distance = np.sin(zangle - x)*R_earth/np.sin(x)
+        self.distance = distance.to(u.kilometer)
 
         self.sed = photUtils.Sed()
         self.sed.set_flat_sed()
@@ -29,26 +39,26 @@ class BaseSatellite:
         self.object = None
 
     @property
-    def orbital_omega(self):
-        h = self.height*1000.
-        return np.sqrt(G.value*M_earth.value/(R_earth.value + h)**3)
+    def orbital_omega(self): # rad/s
+        return np.sqrt(G*M_earth/(R_earth + self.height)**3)
 
     @property
-    def orbital_velocity(self):
-        return self.orbital_omega*(R_earth.value + h)
+    def orbital_velocity(self): # m/s
+        return self.orbital_omega*(R_earth + self.height)
 
     @property
-    def tangential_velocity(self):
-        x = np.arcsin(R_earth.value*np.sin(self.zangle)/(R_earth.value + h))
+    def tangential_velocity(self): # m/s
+        x = np.arcsin(R_earth*np.sin(self.zangle)/(R_earth + self.height))
         return self.orbital_velocity*np.cos(x)
 
     @property
-    def tangential_omega(self):
-        return self.tangential_velocity*180.*60./(self.distance*1000.*np.pi)
+    def tangential_omega(self): # rad/s
+        return self.tangential_velocity/(self.distance**np.pi)
        
+    # Need to ensure above angular velocities are in rad/second not dimensionless/second
     def get_flux(self, magnitude, band, plate_scale, gain=1.):
 
-        dt = plate_scale/(self.angular_v/60.*3600)
+        dt = plate_scale/(self.tangential_omega/60.*3600) ## converting to arcsec/sec?
 
         filename = os.path.join(get_data_dir(), 'throughputs/baseline/total_{0}.dat'.format(band.lower()))
         bandpass = photUtils.Bandpass()
