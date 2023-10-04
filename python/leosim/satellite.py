@@ -1,3 +1,6 @@
+# To Do: 
+#   * Write getter/setter for satellite parameters.
+#   * Make Sed a property? Can you still modify it? Is that needed? 
 import numpy as np
 import os
 from astropy.constants import G, M_earth, R_earth
@@ -7,17 +10,15 @@ import galsim
 import rubin_sim.phot_utils as photUtils
 from rubin_sim.data import get_data_dir
 
-RAD2DEG = 206265.
-
 class BaseSatellite:
     """A base satellite object.
 
     Parameters
     ----------
-    height : `float`
-        Orbital height (kilometers).
-    zangle : 'float'
-        Observed angle from zenith (degrees).
+    height : `astropy.units.Quantity`
+        Orbital height.
+    zangle : `astropy.units.Quantity`
+        Observed angle from zenith.
     """
 
     height = None
@@ -26,28 +27,36 @@ class BaseSatellite:
     zangle = None
     """Observed angle from zenith (`astropy.units.Quantity)."""
 
-    satellite_profile = None
-    """Surface brightness profile (galsim.gsobject.GSObject)."""
+    sed = None
+    """Spectral energy distribution (`rubin_sim.phot_utils.sed.Sed`)."""
 
     def __init__(self, height, zangle):
            
-        self.height = height*u.km
-        if zangle < 0.:
+        self.height = height.to(u.km)
+        if zangle.to_value(u.deg) < 0.:
             raise ValueError('zangle {0.1f} cannot be less than 0 deg'.format(zangle.value))
-        self.zangle = zangle*u.deg
-
-        # Calculate distance to satellite
-        x = np.arcsin(R_earth*np.sin(self.zangle)/(R_earth + self.height))
-        if np.isclose(x.value, 0):
-            distance = self.height
-        else:
-            distance = np.sin(self.zangle - x)*R_earth/np.sin(x)
-        self.distance = distance.to(u.km)
+        self.zangle = zangle.to(u.deg)
 
         # Set satellite SED
         self.sed = photUtils.Sed()
         self.sed.set_flat_sed()
         self.sed.flambda_tofnu()
+
+    @property
+    def distance(self):
+        """Distance to satellite (`astropy.units.Quantity`, read-only)."""
+        x = np.arcsin(R_earth*np.sin(self.zangle)/(R_earth + self.height))
+        if np.isclose(x.value, 0):
+            distance = self.height
+        else:
+            distance = np.sin(self.zangle - x)*R_earth/np.sin(x)
+        return distance.to(u.km)
+
+    @property
+    def satellite_profile(self):
+        """Surface brightness profile (`galsim.gsobject.GSObject`, read-only)
+        """
+        return self._satellite_profile
 
     @property
     def orbital_omega(self):
@@ -158,12 +167,12 @@ class DiskSatellite(BaseSatellite):
 
     Parameters
     ----------
-    height : `float`
-        Orbital height (kilometers).
-    zangle : 'float'
-        Observed angle from zenith (degrees).
-    radius : `float`
-        Radius of the disk (meters).
+    height : `astropy.units.Quantity`
+        Orbital height.
+    zangle : `astropy.units.Quantity`
+        Observed angle from zenith.
+    radius : `astropy.units.Quantity`
+        Radius of the disk.
     """
 
     radius = None
@@ -171,6 +180,6 @@ class DiskSatellite(BaseSatellite):
 
     def __init__(self, height, zangle, radius): 
         super().__init__(height, zangle)
-        self.radius = radius*u.m
+        self.radius = radius.to(u.m)
         r = (self.radius/self.distance).to_value(u.arcsec, equivalencies=u.dimensionless_angles())
-        self.satellite_profile = galsim.TopHat(r)
+        self._satellite_profile = galsim.TopHat(r)

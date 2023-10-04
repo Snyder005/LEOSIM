@@ -1,3 +1,6 @@
+# To Do: make all instrument attributes static.
+# Integrate throughputs and photometric parameters.
+
 import astropy.units as u
 
 class Instrument:
@@ -5,12 +8,12 @@ class Instrument:
 
     Parameters
     ----------
-    outer_radius : `float`
-        Outer radius of the primary mirror (meters).
-    inner_radius : `float`
-        Inner radius of the primary mirror (meters).
-    pixel_scale : `float`
-        Pixel scale of the instrument camera (arcsecond per pixel).
+    outer_radius : `(astropy.units.Quantity)`
+        Outer radius of the primary mirror.
+    inner_radius : `(astropy.units.Quantity)`
+        Inner radius of the primary mirror.
+    pixel_scale : `(astropy.units.Quantity)`
+        Pixel scale of the instrument camera.
     gain : `float`
         Gain of the instrument camera (electrons per ADU).
     """
@@ -28,7 +31,7 @@ class Instrument:
     """Gain of the instrument camera (`float`)."""
 
     def __init__(self, outer_radius, inner_radius, pixel_scale, gain):
-        self.outer_radius = outer_radius*u.m
-        self.inner_radius = inner_radius*u.m
-        self.pixel_scale = pixel_scale*u.arcsec/u.pix
+        self.outer_radius = outer_radius.to(u.m)
+        self.inner_radius = inner_radius.to(u.m)
+        self.pixel_scale = pixel_scale.to(u.arcsec/u.pix)
         self.gain = gain
