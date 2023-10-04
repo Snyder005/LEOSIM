@@ -14,19 +14,25 @@ class BaseSatellite:
 
     Parameters
     ----------
-    height : `astropy.units.Quantity`
-        Orbital height.
-    zangle : 'astropy.units.Quantity'
-        Angle from zenith.
+    height : `float`
+        Orbital height (kilometers).
+    zangle : 'float'
+        Observed angle from zenith (degrees).
     """
 
+    height = None
+    """Orbital height (`astropy.units.Quantity`)."""
+
+    zangle = None
+    """Observed angle from zenith (`astropy.units.Quantity)."""
+
     satellite_profile = None
-    """Satellite surface brightness profile (galsim.gsobject.GSObject)."""
+    """Surface brightness profile (galsim.gsobject.GSObject)."""
 
     def __init__(self, height, zangle):
            
-        self.height = height.to(u.kilometer)
-        self.zangle = zangle.to(u.degree)
+        self.height = height*u.kilometer
+        self.zangle = zangle*u.degree
         if zangle.value < 0.:
             raise ValueError('zangle {0.1f} cannot be less than 0 deg'.format(zangle.value))
 
@@ -57,7 +63,7 @@ class BaseSatellite:
 
     @property
     def tangential_velocity(self):
-        """Tangential velocity to line-of-sight (`astropy.units.Quantity`, 
+        """Velocity tangential to the line-of-sight (`astropy.units.Quantity`, 
         read-only).
         """
         x = np.arcsin(R_earth*np.sin(self.zangle)/(R_earth + self.height))
@@ -65,14 +71,25 @@ class BaseSatellite:
 
     @property
     def tangential_omega(self):
-        """Tangential angular velocity to line-of-sight 
+        """Angular velocity tangential to the line-of-sight 
         (`astropy.units.Quantity`, read-only).
         """
         omega = self.tangential_velocity/(self.distance)
         return omega.to(u.radian/u.second, equivalencies=u.dimensionless_angles())
 
     def get_defocus_profile(self, instrument):
+        """Calculate a defocusing profile for a given instrument.
 
+        Parameters
+        ----------
+        instrument : `tuple`
+            Outer and inner radii of the instrument primary mirror.
+        
+        Returns
+        -------
+        defocus_profile : `galsim.gsobject.GSObject`
+            Defocusing profile
+        """
         outer_radius, inner_radius = instrument
         r_o = (outer_radius/self.distance).to_value(u.arcsecond, equivalencies=u.dimensionless_angles())
         r_i = (inner_radius/self.distance).to_value(u.arcsecond, equivalencies=u.dimensionless_angles())
@@ -142,17 +159,19 @@ class DiskSatellite(BaseSatellite):
 
     Parameters
     ----------
-    height : `astropy.units.Quantity`
-        Orbital height.
-    zangle : 'astropy.units.Quantity'
-        Angle from zenith.
-    radius : `astropy.units.Quantity`
-        Radius of satellite.
+    height : `float`
+        Orbital height (kilometers).
+    zangle : 'float'
+        Observed angle from zenith (degrees).
+    radius : `float`
+        Radius of the disk (meters).
     """
 
-    def __init__(self, height, zangle, radius):
-        
+    radius = None
+    """Radius of the disk (`astropy.units.Quantity`)."""
+
+    def __init__(self, height, zangle, radius): 
         super().__init__(height, zangle)
-        self.radius = radius.to(u.meter)
+        self.radius = radius*u.meter
         r = (self.radius/self.distance).to_value(u.arcsecond, equivalencies=u.dimensionless_angles())
         self.satellite_profile = galsim.TopHat(r)
