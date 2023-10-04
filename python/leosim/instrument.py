@@ -9,8 +9,10 @@ class Instrument:
         Outer radius of the primary mirror (meters).
     inner_radius : `float`
         Inner radius of the primary mirror (meters).
-    plate_scale : `float`
-        Plate scale of the instrument camera (arcsecond per pixel).
+    pixel_scale : `float`
+        Pixel scale of the instrument camera (arcsecond per pixel).
+    gain : `float`
+        Gain of the instrument camera (electrons per ADU).
     """
 
     outer_radius = None
@@ -19,10 +21,14 @@ class Instrument:
     inner_radius = None
     """Inner radius of the primary mirror (astropy.units.Quantity)."""
 
-    plate_scale = None
-    """Plate scale of the instrument camera (astropy.units.Quantity)."""
+    pixel_scale = None
+    """Pixel scale of the instrument camera (astropy.units.Quantity)."""
 
-    def __init__(self, outer_radius, inner_radius, plate_scale):
-        self.outer_radius = outer_radius*u.meter
-        self.inner_radius = inner_radius*u.meter
-        self.plate_scale = plate_scale
+    gain = None
+    """Gain of the instrument camera (`float`)."""
+
+    def __init__(self, outer_radius, inner_radius, pixel_scale, gain):
+        self.outer_radius = outer_radius*u.m
+        self.inner_radius = inner_radius*u.m
+        self.pixel_scale = pixel_scale*u.arcsec/u.pix
+        self.gain = gain
