@@ -8,7 +8,6 @@ import astropy.units as u
 import galsim
 
 import rubin_sim.phot_utils as photUtils
-from rubin_sim.data import get_data_dir
 
 class BaseSatellite:
     """A base satellite object.
@@ -31,6 +30,7 @@ class BaseSatellite:
         # Set satellite SED
         self._sed = photUtils.Sed()
         self._sed.set_flat_sed()
+        self._profile = None
 
     @property
     def height(self):
@@ -66,10 +66,10 @@ class BaseSatellite:
         return self._sed
 
     @property
-    def satellite_profile(self):
+    def profile(self):
         """Surface brightness profile (`galsim.gsobject.GSObject`, read-only)
         """
-        return self._satellite_profile
+        return self._profile
 
     @property
     def orbital_omega(self):
@@ -112,12 +112,11 @@ class BaseSatellite:
         defocus_profile : `galsim.gsobject.GSObject`
             Defocusing profile
         """
-        outer_radius, inner_radius = instrument
         r_o = (instrument.outer_radius/self.distance).to_value(u.arcsec, 
                                                                equivalencies=u.dimensionless_angles())
         r_i = (instrument.inner_radius/self.distance).to_value(u.arcsec, 
                                                                equivalencies=u.dimensionless_angles())
-        defocus = galsim.TopHat(r_o) - galsim.TopHat(r_i, flux=(r_i/r_o)**2.)
+        defocus_profile = galsim.TopHat(r_o) - galsim.TopHat(r_i, flux=(r_i/r_o)**2.)
 
         return defocus_profile
     
@@ -155,7 +154,7 @@ class BaseSatellite:
     def get_normalized_profile(self, seeing_profile, instrument, step_size, steps):
 
         defocus_profile = self.get_defocus_profile(instrument)
-        final_profile = galsim.Convolve([self.satellite_profile, defocus_profile, seeing_profile])
+        final_profile = galsim.Convolve([self.profile, defocus_profile, seeing_profile])
         image = final_profile.drawImage(scale=step_size, nx=steps, ny=steps)
 
         profile = np.sum(image.array, axis=0)
@@ -168,7 +167,7 @@ class BaseSatellite:
 
         flux = self.get_flux(magnitude, band, instrument)
         defocus_profile = self.get_defocus_profile(instrument)
-        final_profile = galsim.Convolve([self.satellite_profile, defocus_profile, seeing_profile])
+        final_profile = galsim.Convolve([self.profile, defocus_profile, seeing_profile])
         final_profile = final_profile.withFlux(flux)
         image = final_profile.drawImage(scale=step_size, nx=steps, ny=steps)
        
@@ -187,20 +186,78 @@ class DiskSatellite(BaseSatellite):
     zangle : `astropy.units.Quantity`
         Observed angle from zenith.
     radius : `astropy.units.Quantity`
-        Radius of the disk.
+        Radius of the satellite.
     """
 
     def __init__(self, height, zangle, radius): 
         super().__init__(height, zangle)
         self._radius = radius.to(u.m)
         r = (self.radius/self.distance).to_value(u.arcsec, equivalencies=u.dimensionless_angles())
-        self._satellite_profile = galsim.TopHat(r)
+        self._profile = galsim.TopHat(r)
 
     @property
     def radius(self):
-        """Radius of the disk (`astropy.units.Quantity`)."""
+        """Radius of the satellite (`astropy.units.Quantity`)."""
         return self._radius
 
     @radius.setter
     def radius(self, value):
         self._radius = value.to(u.m)
+
+class RectangularSatellite(BaseSatellite):
+    """A rectangular satellite.
+
+    Parameters
+    ----------
+    height : `astropy.units.Quantity`
+        Orbital height.
+    zangle : `astropy.units.Quantity`
+        Observed angle from zenith.
+    width : `astropy.units.Quantity`
+        Width of the satellite.
+    length : `astropy.units.Quantity`
+        Length of the satellite.
+    """
+
+    def __init__(self, height, zangle, width, length):
+        super().__init__(height, zangle)
+        self._width = width.to(u.m)
+        self._length = length.to(u.m)
+        w = (self.width/self.distance).to_value(u.arcsec, equivalencies=u.dimensionless_angles())
+        l = (self.length/self.distance).to_value(u.arcsec, equivalencies=u.dimensionless_angles())
+        self._profile = galsim.Box(w, l)
+
+    @property
+    def width(self):
+        """Width of the satellite (`astropy.units.Quantity`)."""
+        return self._width
+
+    @width.setter
+    def width(self, value):
+        self._width = value.to(u.m)
+
+    @property
+    def length(self):
+        """Length of the satellite (`astropy.units.Quantity`)."""
+        return self._length
+
+    @length.setter
+    def length(self, value):
+        self._length = value.to(u.m)
+
+class ArbitrarySatellite(BaseSatellite):
+    """An arbitrarily shaped satellite.
+
+    Parameters
+    ----------
+    height : `astropy.units.Quantity`
+        Orbital height.
+    zangle : `astropy.units.Quantity`
+        Observed angle from zenith.
+    profile : `galsim.GSObject`
+        Satellite surface brightness profile.
+    """
+
+    def __init__(self, height, zangle, profile):
+        super().__init__(height, zangle)
+        self._profile = profile

@@ -1,5 +1,6 @@
 import os
 import astropy.units as u
+import numpy as np
 
 import rubin_sim.phot_utils as photUtils
 from rubin_sim.data import get_data_dir
@@ -30,7 +31,7 @@ class Instrument:
 
     def __init__(self, outer_radius, inner_radius, pixel_scale, gain=1.0):
 
-        if outer_radiuas < inner_radius:
+        if outer_radius < inner_radius:
             raise ValueError("Outer radius must be greater than inner radius.") 
         self._outer_radius = outer_radius.to(u.m)
         self._inner_radius = inner_radius.to(u.m)
@@ -59,7 +60,7 @@ class Instrument:
     @property
     def effarea(self):
         """Effective collecting area (`astropy.units.Quantity`, read-only)."""
-        return np.pi*(outer_radius**2 - inner_radius**2)
+        return np.pi*(self.outer_radius**2 - self.inner_radius**2)
 
     def get_photo_params(self, exptime):
         """Generate photometric parameters for a given exposure.
@@ -78,24 +79,23 @@ class Instrument:
         effarea = self.effarea.to_value(u.cm*u.cm)
         photo_params = photUtils.PhotometricParameters(exptime=exptime, nexp=1, effarea=effarea,
                                                        gain=self.gain, platescale=pixel_scale)
-        return photUtils.PhotometricParameters(exptime=exptime, nexp=1)
+        return photo_params
 
     @staticmethod
-    def get_bandpass(bandname):
+    def get_bandpass(band):
         """Get the telescope bandpass throughput curve.
 
         Parameters
         ----------
-        bandname : `str`
+        band : `str`
             Name of filter band.
 
         Returns
         -------
-        bandpass : `rubin_sim.phot_utils.bandpass.Bandpass`
+        bandpass : `rubin_sim.phot_utils.Bandpass`
             Telescope throughput curves.
         """
-        filename = os.path.join(get_data_dir(), 
-                                'throughputs/baseline/total_{0}.dat'.format(bandname.lower()))
+        filename = os.path.join(get_data_dir(), 'throughputs/baseline/total_{0}.dat'.format(band.lower()))
         bandpass = photUtils.Bandpass()
         bandpass.read_throughput(filename)
         return bandpass
