@@ -21,26 +21,34 @@ class BaseSatellite:
         Observed angle from zenith.
     """
 
-    height = None
-    """Orbital height (`astropy.units.Quantity`)."""
-
-    zangle = None
-    """Observed angle from zenith (`astropy.units.Quantity)."""
-
-    sed = None
-    """Spectral energy distribution (`rubin_sim.phot_utils.sed.Sed`)."""
-
     def __init__(self, height, zangle):
            
-        self.height = height.to(u.km)
+        self._height = height.to(u.km)
         if zangle.to_value(u.deg) < 0.:
             raise ValueError('zangle {0.1f} cannot be less than 0 deg'.format(zangle.value))
-        self.zangle = zangle.to(u.deg)
+        self._zangle = zangle.to(u.deg)
 
         # Set satellite SED
-        self.sed = photUtils.Sed()
-        self.sed.set_flat_sed()
-        self.sed.flambda_tofnu()
+        self._sed = photUtils.Sed()
+        self._sed.set_flat_sed()
+
+    @property
+    def height(self):
+        """Orbital height (`astropy.units.Quantity`)."""
+        return self._height
+
+    @height.setter
+    def height(self, value):
+        self._height = value.to(u.km)
+
+    @property
+    def zangle(self):
+        """Observed angle from zenith (`astropy.units.Quantity`)."""
+        return self._zangle
+
+    @zangle.setter
+    def zangle(self, value):
+        self._zangle = value.to(u.deg)
 
     @property
     def distance(self):
@@ -51,6 +59,11 @@ class BaseSatellite:
         else:
             distance = np.sin(self.zangle - x)*R_earth/np.sin(x)
         return distance.to(u.km)
+
+    @property
+    def sed(self):
+        """Spectral energy distribution (`rubin_sim.phot_utils.sed.Sed`)."""
+        return self._sed
 
     @property
     def satellite_profile(self):
@@ -108,8 +121,8 @@ class BaseSatellite:
 
         return defocus_profile
     
-    def get_flux(self, magnitude, band, instrument):
-        """Calculate the number of ADU.
+    def get_flux(self, magnitude, band, instrument, wavelen=None, fnu=None):
+        """Calculate the number of ADU for a given observation.
 
         Parameters
         ----------
@@ -119,6 +132,10 @@ class BaseSatellite:
             Name of filter band.
         instrument : `leosim.instrument.Instrument`
             Instrument used for observation.
+        wavelen : `numpy.ndarray`, optional
+            Wavelength array for spectral energy distribution (nm).
+        fnu : `numpy.ndarray`, optional
+            Flux density array for spectral energy distribution (Jy).
 
         Returns
         -------
@@ -127,12 +144,10 @@ class BaseSatellite:
         """
         dt = (instrument.pixel_scale/self.tangential_omega).to_value(u.s, equivalencies=[(u.pix, None)])
 
-        filename = os.path.join(get_data_dir(), 'throughputs/baseline/total_{0}.dat'.format(band.lower()))
-        bandpass = photUtils.Bandpass()
-        bandpass.read_throughput(filename)
-        photo_params = photUtils.PhotometricParameters(exptime=dt, nexp=1, gain=instrument.gain)
+        photo_params = instrument.get_photo_params(exptime=dt)
+        bandpass = instrument.get_bandpass(band)
 
-        m0_adu = self.sed.calc_adu(bandpass, phot_params=photo_params)
+        m0_adu = self.sed.calc_adu(bandpass, phot_params=photo_params, wavelen=wavelen, fnu=fnu)
         adu = m0_adu*(10**(-magnitude/2.5))
 
         return adu
@@ -175,11 +190,17 @@ class DiskSatellite(BaseSatellite):
         Radius of the disk.
     """
 
-    radius = None
-    """Radius of the disk (`astropy.units.Quantity`)."""
-
     def __init__(self, height, zangle, radius): 
         super().__init__(height, zangle)
-        self.radius = radius.to(u.m)
+        self._radius = radius.to(u.m)
         r = (self.radius/self.distance).to_value(u.arcsec, equivalencies=u.dimensionless_angles())
         self._satellite_profile = galsim.TopHat(r)
+
+    @property
+    def radius(self):
+        """Radius of the disk (`astropy.units.Quantity`)."""
+        return self._radius
+
+    @radius.setter
+    def radius(self, value):
+        self._radius = value.to(u.m)
