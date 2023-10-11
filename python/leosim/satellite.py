@@ -151,6 +151,19 @@ class BaseSatellite:
 
         return adu
 
+    def get_stationary_profile(self, seeing_profile, instrument, magnitude=None, band=None, **flux_kwargs):
+
+        defocus_profile = self.get_defocus_profile(instrument)
+        stationary_profile = galsim.Convolve([self.profile, defocus_profile, seeing_profile])
+
+        if (magnitude is not None) and (band is not None):
+            adu = self.get_flux(magnitude, band, instrument, **flux_kwargs)
+        else:
+            adu = 1.0
+        stationary_profile = stationary_profile.withFlux(adu)
+
+        return stationary_profile
+
     def get_normalized_profile(self, seeing_profile, instrument, step_size, steps):
 
         defocus_profile = self.get_defocus_profile(instrument)
