@@ -8,7 +8,9 @@ Simulation of low earth orbit satellite streaks in astronomical images including
 
 ## Dependencies
 
-The SatSim module is being developed concurrently to use the latest version of the LSST Science Pipeline DM Stack, and should require no additional dependencies or modules outside of those include in `lsst_distrib` selection of packages in the DM Stack setup.  For information on how to install the LSST Science Pipeline, visit: <https://pipelines.lsst.io/>
+The LEOSim module is being developed concurrently to use the latest version of the LSST Science Pipeline DM Stack.  For information on how to install the LSST Science Pipeline, visit: <https://pipelines.lsst.io/>.
+
+Additionally the LEOSim module requires the installtion of `rubin-sim` package and the data download. For installation instructions, visit: <https://github.com/lsst/rubin_sim>.
 
 ## Acknowledgments
 
