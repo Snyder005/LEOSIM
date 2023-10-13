@@ -12,7 +12,7 @@ import rubin_sim.phot_utils as photUtils
 from .component import *
 
 class BaseSatellite:
-    """A base satellite object.
+    """A class representing a base satellite object.
 
     Parameters
     ----------
@@ -192,7 +192,7 @@ class BaseSatellite:
         return scale, profile
    
 class DiskSatellite(BaseSatellite):
-    """A circular disk satellite.
+    """A class representing a circular disk satellite.
 
     Parameters
     ----------
@@ -220,7 +220,7 @@ class DiskSatellite(BaseSatellite):
         self._radius = value.to(u.m)
 
 class RectangularSatellite(BaseSatellite):
-    """A rectangular satellite.
+    """A class representing a rectangular satellite.
 
     Parameters
     ----------
@@ -260,8 +260,8 @@ class RectangularSatellite(BaseSatellite):
     def length(self, value):
         self._length = value.to(u.m)
 
-class ArbitrarySatellite(BaseSatellite):
-    """An arbitrarily shaped satellite.
+class ComponentSatellite(BaseSatellite):
+    """A class representing a satellite assembled from components.
 
     Parameters
     ----------
@@ -269,31 +269,41 @@ class ArbitrarySatellite(BaseSatellite):
         Orbital height.
     zangle : `astropy.units.Quantity`
         Observed angle from zenith.
-    profile : `galsim.GSObject`
-        Satellite surface brightness profile.
+    components : `list` [`leosim.component.Component`]
+        A list of satellite components.
     """
 
-    def __init__(self, height, zangle, profile):
-        super().__init__(height, zangle)
-        self._profile = profile
-
-class ComponentSatellite(BaseSatellite):
-
-    def __init__(self, height, zangle, components=[]):
-        
+    def __init__(self, height, zangle, components=[]):        
         super().__init__(height, zangle)
         self.components = components
         
-    def add_component(self, component):
-        
-        self.components.append(component)
-        
     @property
     def profile(self):
-        
+        """Surface brightness profile (`galsim.gsobject.GSObject`, read-only)
+        """        
         profile = self.components[0].create_profile(self.distance)
         
         for component in self.components[1:]:
             profile += component.create_profile(self.distance)
             
         return profile
+
+    def add_component(self, component):
+        """Add a satellite component.
+
+        Parameters
+        ----------
+        component : `leosim.component.Component`
+            A satellite component.
+        """
+        self.components.append(component)
+
+    def delete_component(self, index=0):
+        """Remove a satellite component.
+
+        Parameters
+        ----------
+        index : `int`
+            List index of the component. Default is 0.
+        """
+        self.components.pop(index)
