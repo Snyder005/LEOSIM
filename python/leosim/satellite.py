@@ -1,6 +1,26 @@
-# To Do: 
-#   * Write getter/setter for satellite parameters.
-#   * Make Sed a property? Can you still modify it? Is that needed? 
+# This file is part of leosim.
+#
+# Developed for the LSST Data Management System.
+# This product includes software developed by the LSST Project
+# (https://www.lsst.org).
+# See the COPYRIGHT file at the top-level directory of this distribution
+# for details of code ownership.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+__all__ = ("DiskSatellite", "RectangularSatellite", "ComponentSatellite")
+
 import numpy as np
 import os
 from astropy.constants import G, M_earth, R_earth
@@ -9,8 +29,10 @@ import galsim
 
 import rubin_sim.phot_utils as photUtils
 
+from .component import * # is this needed?
+
 class BaseSatellite:
-    """A base satellite object.
+    """A class representing a base satellite object.
 
     Parameters
     ----------
@@ -18,10 +40,14 @@ class BaseSatellite:
         Orbital height.
     zangle : `astropy.units.Quantity`
         Observed angle from zenith.
+
+    Raises
+    ------
+    ValueError
+        Raised if parameter ``zangle`` is less than 0 deg.
     """
 
-    def __init__(self, height, zangle):
-           
+    def __init__(self, height, zangle): 
         self._height = height.to(u.km)
         if zangle.to_value(u.deg) < 0.:
             raise ValueError('zangle {0.1f} cannot be less than 0 deg'.format(zangle.value))
@@ -30,7 +56,6 @@ class BaseSatellite:
         # Set satellite SED
         self._sed = photUtils.Sed()
         self._sed.set_flat_sed()
-        self._profile = None
 
     @property
     def height(self):
@@ -62,14 +87,14 @@ class BaseSatellite:
 
     @property
     def sed(self):
-        """Spectral energy distribution (`rubin_sim.phot_utils.sed.Sed`)."""
+        """Spectral energy distribution (`rubin_sim.phot_utils.Sed`)."""
         return self._sed
 
     @property
     def profile(self):
-        """Surface brightness profile (`galsim.gsobject.GSObject`, read-only)
+        """Surface brightness profile (`galsim.GSObject`, read-only)
         """
-        return self._profile
+        return None
 
     @property
     def orbital_omega(self):
@@ -104,12 +129,12 @@ class BaseSatellite:
 
         Parameters
         ----------
-        instrument : `leosim.instrument.Instrument`
+        instrument : `leosim.Instrument`
             Instrument used for observation.
         
         Returns
         -------
-        defocus_profile : `galsim.gsobject.GSObject`
+        defocus_profile : `galsim.GSObject`
             Defocusing profile
         """
         r_o = (instrument.outer_radius/self.distance).to_value(u.arcsec, 
@@ -129,7 +154,7 @@ class BaseSatellite:
             Stationary AB magnitude.
         band: `str`
             Name of filter band.
-        instrument : `leosim.instrument.Instrument`
+        instrument : `leosim.Instrument`
             Instrument used for observation.
         wavelen : `numpy.ndarray`, optional
             Wavelength array for spectral energy distribution (nm).
@@ -190,7 +215,7 @@ class BaseSatellite:
         return scale, profile
    
 class DiskSatellite(BaseSatellite):
-    """A circular disk satellite.
+    """A class representing a circular disk satellite.
 
     Parameters
     ----------
@@ -205,8 +230,6 @@ class DiskSatellite(BaseSatellite):
     def __init__(self, height, zangle, radius): 
         super().__init__(height, zangle)
         self._radius = radius.to(u.m)
-        r = (self.radius/self.distance).to_value(u.arcsec, equivalencies=u.dimensionless_angles())
-        self._profile = galsim.TopHat(r)
 
     @property
     def radius(self):
@@ -217,8 +240,14 @@ class DiskSatellite(BaseSatellite):
     def radius(self, value):
         self._radius = value.to(u.m)
 
+    @property
+    def profile(self):
+        """Surface brightness profile (`galsim.TopHat`, read-only)."""
+        r = (self.radius/self.distance).to_value(u.arcsec, equivalencies=u.dimensionless_angles())
+        return galsim.TopHat(r)
+
 class RectangularSatellite(BaseSatellite):
-    """A rectangular satellite.
+    """A class representing a rectangular satellite.
 
     Parameters
     ----------
@@ -236,9 +265,6 @@ class RectangularSatellite(BaseSatellite):
         super().__init__(height, zangle)
         self._width = width.to(u.m)
         self._length = length.to(u.m)
-        w = (self.width/self.distance).to_value(u.arcsec, equivalencies=u.dimensionless_angles())
-        l = (self.length/self.distance).to_value(u.arcsec, equivalencies=u.dimensionless_angles())
-        self._profile = galsim.Box(w, l)
 
     @property
     def width(self):
@@ -258,8 +284,15 @@ class RectangularSatellite(BaseSatellite):
     def length(self, value):
         self._length = value.to(u.m)
 
-class ArbitrarySatellite(BaseSatellite):
-    """An arbitrarily shaped satellite.
+    @property
+    def profile(self):
+        """Surface brightness profile (`galsim.Box`, read-only)."""
+        w = (self.width/self.distance).to_value(u.arcsec, equivalencies=u.dimensionless_angles())
+        l = (self.length/self.distance).to_value(u.arcsec, equivalencies=u.dimensionless_angles())
+        return galsim.Box(w, l)
+
+class ComponentSatellite(BaseSatellite):
+    """A class representing a satellite assembled from components.
 
     Parameters
     ----------
@@ -267,10 +300,36 @@ class ArbitrarySatellite(BaseSatellite):
         Orbital height.
     zangle : `astropy.units.Quantity`
         Observed angle from zenith.
-    profile : `galsim.GSObject`
-        Satellite surface brightness profile.
+    components : `list` [`leosim.Component`]
+        A list of satellite components.
+
+    Raises
+    ------
+    ValueError
+        Raised if ``components`` is of length 0.
     """
 
-    def __init__(self, height, zangle, profile):
+    def __init__(self, height, zangle, components):
         super().__init__(height, zangle)
-        self._profile = profile
+
+        if len(components) == 0:
+            raise ValueError("components list must include at least one component.")
+        self._components = components
+
+    @property
+    def components(self):
+        """A list of satellite components. (`list` [`leosim.Component`], 
+        read-only).
+        """
+        return self._components
+        
+    @property
+    def profile(self):
+        """Surface brightness profile (`galsim.GSObject`, read-only)."""
+        profile = self.components[0].create_profile(self.distance)
+        
+        for component in self.components[1:]:
+            profile += component.create_profile(self.distance)
+            
+        return profile
+
