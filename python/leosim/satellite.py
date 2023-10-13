@@ -9,6 +9,8 @@ import galsim
 
 import rubin_sim.phot_utils as photUtils
 
+from .component import *
+
 class BaseSatellite:
     """A base satellite object.
 
@@ -274,3 +276,24 @@ class ArbitrarySatellite(BaseSatellite):
     def __init__(self, height, zangle, profile):
         super().__init__(height, zangle)
         self._profile = profile
+
+class ComponentSatellite(BaseSatellite):
+
+    def __init__(self, height, zangle, components=[]):
+        
+        super().__init__(height, zangle)
+        self.components = components
+        
+    def add_component(self, component):
+        
+        self.components.append(component)
+        
+    @property
+    def profile(self):
+        
+        profile = self.components[0].create_profile(self.distance)
+        
+        for component in self.components[1:]:
+            profile += component.create_profile(self.distance)
+            
+        return profile
