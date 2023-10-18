@@ -150,9 +150,9 @@ class BaseSatellite:
 
         Parameters
         ----------
-        magnitude: `float`
+        magnitude : `float`
             Stationary AB magnitude.
-        band: `str`
+        band : `str`
             Name of filter band.
         instrument : `leosim.Instrument`
             Instrument used for observation.
@@ -177,7 +177,38 @@ class BaseSatellite:
         return adu
 
     def get_stationary_profile(self, seeing_profile, instrument, magnitude=None, band=None, **flux_kwargs):
+        """Create the satellite stationary surface brightness profile.
 
+        The satellite stationary surface brightness profile is created by 
+        convolving the satellite surface brightness profile with the defocus
+        profile, as determined by the instrument geometry, and an atmospheric
+        PSF. By providing a magnitude and a filter band, the resulting profile
+        will be scaled by the appropriate flux value.
+
+        Parameters
+        ----------
+        seeing_profile : `galsim.GSObject`
+            A surface brightness profile reprsenting an atmospheric PSF.
+        instrument : `leosim.Instrument`
+            Instrument used for observation.
+        magnitude : `float`, optional
+            Stationary AB magnitude (None by default).
+        band : `str`, optional
+            Name of filter band (None by default).
+        **flux_kwargs
+            Additional keyword arguments passed to `get_flux`.
+
+            ``wavelen``:
+                Wavelength array for spectral energy distribution (nm).
+            ``fnu``:
+                Flux density array for spectral energy distribution (Jy).
+
+        Returns
+        -------
+        stationary_profile : `galsim.GSObject`
+            The satellite stationary surface brightness profile.
+        """
+    
         defocus_profile = self.get_defocus_profile(instrument)
         stationary_profile = galsim.Convolve([self.profile, defocus_profile, seeing_profile])
 

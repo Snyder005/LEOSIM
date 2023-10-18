@@ -41,8 +41,8 @@ class Component:
     """Total flux of component in electrons (`float`)."""
     
     def __init__(self, x0, y0, flux=1.0):        
-        self._x0 = x0.to(u*m)
-        self._y0 = y0.to(u*m)
+        self._x0 = x0.to(u.m)
+        self._y0 = y0.to(u.m)
         self.flux = flux
 
     @property
