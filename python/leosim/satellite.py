@@ -233,7 +233,30 @@ class BaseSatellite:
         return scale, normalized_profile
 
     def get_surface_brightness_profile(self, magnitude, band, seeing_profile, instrument, step_size, steps):
+        """Calculate the cross-sectional surface brightness profile.
 
+        Parameters
+        ----------
+        magnitude : `float`
+            Stationary AB magnitude.
+        band : `str`
+            Name of filter band.
+        seeing_profile : `galsim.GSObject`
+            A surface brightness profile representing an atmospheric PSF.
+        instrument : `leosim.Instrument`
+            Instrument used for observation.
+        step_size : `float`
+            Pixel scale for the image in arcseconds.
+        steps : `int`
+            Size of image in x and y direction.
+
+        Returns
+        -------
+        scale : `numpy.ndarray`
+            Angle array for cross-sectional surface brightness profile (arcsec).
+        profile : `numpy.ndarray`
+            Flux linear density array for cross-sectional surface brightness profile (adu/pixel).
+        """
         flux = self.get_flux(magnitude, band, instrument)
         defocus_profile = self.get_defocus_profile(instrument)
         final_profile = galsim.Convolve([self.profile, defocus_profile, seeing_profile])
