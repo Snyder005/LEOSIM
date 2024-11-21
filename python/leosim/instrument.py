@@ -54,7 +54,7 @@ class Instrument:
 
     def __init__(self, outer_radius, inner_radius, pixel_scale, gain=1.0):
 
-        if outer_radius < inner_radius:
+        if outer_radius <= inner_radius:
             raise ValueError("Outer radius must be greater than inner radius.") 
         self._outer_radius = outer_radius.to(u.m)
         self._inner_radius = inner_radius.to(u.m)
