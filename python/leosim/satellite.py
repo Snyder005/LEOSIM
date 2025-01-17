@@ -47,13 +47,9 @@ class BaseSatellite:
         Raised if parameter ``zangle`` is less than 0 deg.
     """
 
-    def __init__(self, height, zangle): 
-        self._height = height.to(u.km)
-        if zangle.to_value(u.deg) < 0.:
-            raise ValueError('zangle {0.1f} cannot be less than 0 deg'.format(zangle.value))
-        self._zangle = zangle.to(u.deg)
-
-        # Set satellite SED
+    def __init__(self, height, zangle, sed=None): 
+        self.height = height
+        self.zangle = zangle
         self._sed = photUtils.Sed()
         self._sed.set_flat_sed()
 
@@ -73,6 +69,8 @@ class BaseSatellite:
 
     @zangle.setter
     def zangle(self, value):
+        if value.to(u.deg) < 0.:
+            raise ValueError('zangle cannot be less than 0 deg')
         self._zangle = value.to(u.deg)
 
     @property
@@ -135,7 +133,7 @@ class BaseSatellite:
         Returns
         -------
         defocus_profile : `galsim.GSObject`
-            Defocusing profile
+            Defocus kernel profile.
         """
         r_o = (instrument.outer_radius/self.distance).to_value(u.arcsec, 
                                                                equivalencies=u.dimensionless_angles())
@@ -145,21 +143,17 @@ class BaseSatellite:
 
         return defocus_profile
     
-    def get_flux(self, magnitude, band, instrument, wavelen=None, fnu=None):
+    def get_flux(self, magnitude, bandpass, instrument):
         """Calculate the number of ADU for a given observation.
 
         Parameters
         ----------
         magnitude : `float`
             Stationary AB magnitude.
-        band : `str`
-            Name of filter band.
+        bandpass : `rubin_sim.phot_utils.Bandpass`
+            Telescope throughput curve.
         instrument : `leosim.Instrument`
             Instrument used for observation.
-        wavelen : `numpy.ndarray`, optional
-            Wavelength array for spectral energy distribution (nm).
-        fnu : `numpy.ndarray`, optional
-            Flux density array for spectral energy distribution (Jy).
 
         Returns
         -------
@@ -176,13 +170,13 @@ class BaseSatellite:
 
         return adu
 
-    def get_stationary_profile(self, seeing_profile, instrument, magnitude=None, band=None, **flux_kwargs):
+    def get_stationary_profile(self, seeing_profile, instrument, magnitude=None, bandpass=None, **flux_kwargs):
         """Create the satellite stationary surface brightness profile.
 
         The satellite stationary surface brightness profile is created by 
         convolving the satellite surface brightness profile with the defocus
-        profile, as determined by the instrument geometry, and an atmospheric
-        PSF. By providing a magnitude and a filter band, the resulting profile
+        kernel profile (determined by the instrument geometry), and an atmospheric
+        PSF. By providing a magnitude and a bandpass, the resulting profile
         will be scaled by the appropriate flux value.
 
         Parameters
@@ -193,8 +187,8 @@ class BaseSatellite:
             Instrument used for observation.
         magnitude : `float`, optional
             Stationary AB magnitude (None by default).
-        band : `str`, optional
-            Name of filter band (None by default).
+        bandpass : `rubin_sim.phot_utils.Bandpass`, optional
+            Telescope throughput curve (None by default).
         **flux_kwargs
             Additional keyword arguments passed to `get_flux`.
 
@@ -212,8 +206,8 @@ class BaseSatellite:
         defocus_profile = self.get_defocus_profile(instrument)
         stationary_profile = galsim.Convolve([self.profile, defocus_profile, seeing_profile])
 
-        if (magnitude is not None) and (band is not None):
-            adu = self.get_flux(magnitude, band, instrument, **flux_kwargs)
+        if (magnitude is not None) and (bandpass is not None):
+            adu = self.get_flux(magnitude, bandpass, instrument, **flux_kwargs)
         else:
             adu = 1.0
         stationary_profile = stationary_profile.withFlux(adu)

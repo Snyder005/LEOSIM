@@ -103,22 +103,3 @@ class Instrument:
         photo_params = photUtils.PhotometricParameters(exptime=exptime, nexp=1, effarea=effarea,
                                                        gain=self.gain, platescale=pixel_scale)
         return photo_params
-
-    @staticmethod
-    def get_bandpass(band):
-        """Get the telescope bandpass throughput curve.
-
-        Parameters
-        ----------
-        band : `str`
-            Name of filter band.
-
-        Returns
-        -------
-        bandpass : `rubin_sim.phot_utils.Bandpass`
-            Telescope throughput curves.
-        """
-        filename = os.path.join(get_data_dir(), 'throughputs/baseline/total_{0}.dat'.format(band.lower()))
-        bandpass = photUtils.Bandpass()
-        bandpass.read_throughput(filename)
-        return bandpass
